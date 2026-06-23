@@ -183,7 +183,7 @@ For production I would add prompt/version tracking, cached insight runs, stricte
 JSON-schema validation, background jobs for long-running insight generation, and
 monitoring for model failures. I would also review privacy carefully: avoiding
 sending device identifiers to the model
-define retention rules for prompts/responses.
+and define retention rules for prompts/responses.
 Cost-wise, I would not call the
 model on every page load; insights should be generated on demand or scheduled,
 cached, and invalidated when new sync data arrives.
