@@ -41,7 +41,7 @@ responses through Pydantic models. React displays the data in a simple dashboard
 collapsible cards, top-level KPIs, paginated sessions, session charts, AP
 drill-down, paginated sync history, live integration-test feedback, and
 structured AI insights per venue. Docker Compose runs the whole stack with local
-Postgres so a reviewer can test it without external services.
+Postgres so you can test it without external services.
 
 ## System Flow
 
