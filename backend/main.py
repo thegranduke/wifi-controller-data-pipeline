@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -45,12 +46,14 @@ def list_access_points(db: Session = Depends(get_db)):
 
 @app.get("/sessions")
 def list_sessions(venue_id: UUID | None = None, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
-    query = db.query(WifiSession).join(AccessPoint, WifiSession.access_point_id == AccessPoint.id)
+    query = db.query(WifiSession, func.count(WifiSession.id).over().label("total")).join(
+        AccessPoint, WifiSession.access_point_id == AccessPoint.id
+    )
     if venue_id is not None:
         query = query.filter(AccessPoint.venue_id == venue_id)
-    total = query.count()
     rows = query.order_by(WifiSession.connected_at.desc()).offset(offset).limit(limit).all()
-    return {"total": total, "sessions": [{"id": s.id, "client_mac": s.client_mac, "device_type": s.device_type, "duration_seconds": s.duration_seconds, "connected_at": s.connected_at, "access_point_id": s.access_point_id} for s in rows]}
+    total = rows[0][1] if rows else 0
+    return {"total": total, "sessions": [{"id": s.id, "client_mac": s.client_mac, "device_type": s.device_type, "duration_seconds": s.duration_seconds, "connected_at": s.connected_at, "access_point_id": s.access_point_id} for s, _ in rows]}
 
 
 @app.get("/sync-logs")

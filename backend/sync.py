@@ -1,6 +1,5 @@
 import logging
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from sqlalchemy.dialects.postgresql import insert
@@ -10,6 +9,13 @@ from backend.mock_controller import get_controller_data
 from backend.models import AccessPoint, Session as WifiSession, SyncLog, Venue
 
 logger = logging.getLogger(__name__)
+
+
+def _batch_execute(db: Session, stmt):
+    """Run one multi-row INSERT statement; return rowcount."""
+    if stmt is None:
+        return 0
+    return db.execute(stmt).rowcount or 0
 
 VENUE_FIELDS = ("network_id", "name", "city", "country")
 AP_FIELDS = ("mac", "name", "model", "venue_network_id")
@@ -79,8 +85,7 @@ def _validate_payload(payload: dict) -> tuple[list, list, list]:
 
 def run_sync(db: Session) -> dict:
     try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            payload = executor.submit(get_controller_data).result(timeout=5)
+        payload = get_controller_data()
     except Exception as exc:
         _write_sync_log(db, "failed", error_message=str(exc))
         return {
@@ -97,35 +102,35 @@ def run_sync(db: Session) -> dict:
 
     try:
         now = datetime.utcnow()
-        for venue in venues:
-            stmt = (
-                insert(Venue)
-                .values(
-                    id=uuid.uuid4(),
-                    network_id=venue["network_id"],
-                    name=venue["name"],
-                    city=venue["city"],
-                    country=venue["country"],
-                    created_at=now,
-                    updated_at=now,
-                )
-                .on_conflict_do_update(
-                    index_elements=["network_id"],
-                    set_={
-                        "name": venue["name"],
-                        "city": venue["city"],
-                        "country": venue["country"],
-                        "updated_at": now,
-                    },
-                )
+        venue_rows = [
+            {
+                "id": uuid.uuid4(),
+                "network_id": v["network_id"],
+                "name": v["name"],
+                "city": v["city"],
+                "country": v["country"],
+                "created_at": now,
+                "updated_at": now,
+            }
+            for v in venues
+        ]
+        if venue_rows:
+            stmt = insert(Venue).values(venue_rows)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["network_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "city": stmt.excluded.city,
+                    "country": stmt.excluded.country,
+                    "updated_at": now,
+                },
             )
-            db.execute(stmt)
-            venues_synced += 1
+            _batch_execute(db, stmt)
+            venues_synced = len(venue_rows)
 
-        venue_lookup = {
-            venue.network_id: venue.id for venue in db.query(Venue).all()
-        }
+        venue_lookup = {v.network_id: v.id for v in db.query(Venue).all()}
 
+        ap_rows = []
         for ap in access_points:
             venue_id = venue_lookup.get(ap["venue_network_id"])
             if venue_id is None:
@@ -135,33 +140,34 @@ def run_sync(db: Session) -> dict:
                     ap.get("venue_network_id"),
                 )
                 continue
-
-            stmt = (
-                insert(AccessPoint)
-                .values(
-                    id=uuid.uuid4(),
-                    mac=ap["mac"],
-                    name=ap["name"],
-                    model=ap["model"],
-                    venue_id=venue_id,
-                    created_at=now,
-                    updated_at=now,
-                )
-                .on_conflict_do_update(
-                    index_elements=["mac"],
-                    set_={
-                        "name": ap["name"],
-                        "model": ap["model"],
-                        "venue_id": venue_id,
-                        "updated_at": now,
-                    },
-                )
+            ap_rows.append(
+                {
+                    "id": uuid.uuid4(),
+                    "mac": ap["mac"],
+                    "name": ap["name"],
+                    "model": ap["model"],
+                    "venue_id": venue_id,
+                    "created_at": now,
+                    "updated_at": now,
+                }
             )
-            db.execute(stmt)
-            aps_synced += 1
+        if ap_rows:
+            stmt = insert(AccessPoint).values(ap_rows)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["mac"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "model": stmt.excluded.model,
+                    "venue_id": stmt.excluded.venue_id,
+                    "updated_at": now,
+                },
+            )
+            _batch_execute(db, stmt)
+            aps_synced = len(ap_rows)
 
         ap_lookup = {ap.mac: ap.id for ap in db.query(AccessPoint).all()}
 
+        session_rows = []
         for session in sessions:
             access_point_id = ap_lookup.get(session["ap_mac"])
             if access_point_id is None:
@@ -171,25 +177,22 @@ def run_sync(db: Session) -> dict:
                     session.get("ap_mac"),
                 )
                 continue
-
-            connected_at = datetime.fromisoformat(session["connected_at"])
-            stmt = (
-                insert(WifiSession)
-                .values(
-                    id=uuid.uuid4(),
-                    client_mac=session["client_mac"],
-                    device_type=session["device_type"],
-                    duration_seconds=session["duration_seconds"],
-                    connected_at=connected_at,
-                    access_point_id=access_point_id,
-                    created_at=now,
-                )
-                .on_conflict_do_nothing(
-                    index_elements=["client_mac", "connected_at"],
-                )
+            session_rows.append(
+                {
+                    "id": uuid.uuid4(),
+                    "client_mac": session["client_mac"],
+                    "device_type": session["device_type"],
+                    "duration_seconds": session["duration_seconds"],
+                    "connected_at": datetime.fromisoformat(session["connected_at"]),
+                    "access_point_id": access_point_id,
+                    "created_at": now,
+                }
             )
-            result = db.execute(stmt)
-            sessions_synced += result.rowcount
+        if session_rows:
+            stmt = insert(WifiSession).values(session_rows).on_conflict_do_nothing(
+                index_elements=["client_mac", "connected_at"],
+            )
+            sessions_synced = _batch_execute(db, stmt)
 
     except Exception as exc:
         db.rollback()
