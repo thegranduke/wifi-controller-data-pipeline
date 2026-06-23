@@ -1,8 +1,8 @@
 import logging
+import time
 import uuid
 from datetime import datetime
 
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from backend.mock_controller import get_controller_data
@@ -10,12 +10,26 @@ from backend.models import AccessPoint, Session as WifiSession, SyncLog, Venue
 
 logger = logging.getLogger(__name__)
 
+MAX_RETRIES = 3
+RETRY_ON = (ConnectionError, TimeoutError)
+# Note: we only retry transient connection failures.
+# Validation errors and data errors are NOT retried —
+# retrying a bad payload wastes time and doesn't fix the problem.
+
 
 def _batch_execute(db: Session, stmt):
     """Run one multi-row INSERT statement; return rowcount."""
     if stmt is None:
         return 0
     return db.execute(stmt).rowcount or 0
+
+
+def _insert(db: Session, model):
+    if db.bind.dialect.name == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    else:
+        from sqlalchemy.dialects.postgresql import insert
+    return insert(model)
 
 VENUE_FIELDS = ("network_id", "name", "city", "country")
 AP_FIELDS = ("mac", "name", "model", "venue_network_id")
@@ -83,17 +97,33 @@ def _validate_payload(payload: dict) -> tuple[list, list, list]:
     return venues, access_points, sessions
 
 
-def run_sync(db: Session) -> dict:
-    try:
-        payload = get_controller_data()
-    except Exception as exc:
-        _write_sync_log(db, "failed", error_message=str(exc))
-        return {
-            "status": "failed",
-            "venues_synced": 0,
-            "aps_synced": 0,
-            "sessions_synced": 0,
-        }
+def run_sync(db: Session, mode: str = "normal") -> dict:
+    attempts = 0
+    for attempt in range(MAX_RETRIES):
+        attempts = attempt + 1
+        try:
+            payload = get_controller_data(mode=mode)
+            break
+        except RETRY_ON as exc:
+            if attempt == MAX_RETRIES - 1:
+                _write_sync_log(db, "failed", error_message=str(exc))
+                return {
+                    "status": "failed",
+                    "venues_synced": 0,
+                    "aps_synced": 0,
+                    "sessions_synced": 0,
+                    "attempts": attempts,
+                }
+            time.sleep(2**attempt)
+        except Exception as exc:
+            _write_sync_log(db, "failed", error_message=str(exc))
+            return {
+                "status": "failed",
+                "venues_synced": 0,
+                "aps_synced": 0,
+                "sessions_synced": 0,
+                "attempts": attempts,
+            }
 
     venues, access_points, sessions = _validate_payload(payload)
     venues_synced = 0
@@ -115,7 +145,7 @@ def run_sync(db: Session) -> dict:
             for v in venues
         ]
         if venue_rows:
-            stmt = insert(Venue).values(venue_rows)
+            stmt = _insert(db, Venue).values(venue_rows)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["network_id"],
                 set_={
@@ -152,7 +182,7 @@ def run_sync(db: Session) -> dict:
                 }
             )
         if ap_rows:
-            stmt = insert(AccessPoint).values(ap_rows)
+            stmt = _insert(db, AccessPoint).values(ap_rows)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["mac"],
                 set_={
@@ -189,7 +219,7 @@ def run_sync(db: Session) -> dict:
                 }
             )
         if session_rows:
-            stmt = insert(WifiSession).values(session_rows).on_conflict_do_nothing(
+            stmt = _insert(db, WifiSession).values(session_rows).on_conflict_do_nothing(
                 index_elements=["client_mac", "connected_at"],
             )
             sessions_synced = _batch_execute(db, stmt)
@@ -207,6 +237,7 @@ def run_sync(db: Session) -> dict:
             "venues_synced": 0,
             "aps_synced": 0,
             "sessions_synced": 0,
+            "attempts": attempts,
         }
 
     _write_sync_log(
@@ -222,4 +253,5 @@ def run_sync(db: Session) -> dict:
         "venues_synced": venues_synced,
         "aps_synced": aps_synced,
         "sessions_synced": sessions_synced,
+        "attempts": attempts,
     }

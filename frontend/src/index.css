@@ -222,3 +222,160 @@ tr:last-child td {
   color: var(--color-text-tertiary);
   margin-top: 12px;
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.skeleton {
+  height: 14px;
+  border-radius: 4px;
+  background: var(--color-border);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-row td {
+  padding: 12px 8px 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.health-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+
+.health-dot.ok {
+  background: #1a6b1a;
+}
+
+.health-dot.error {
+  background: var(--color-error);
+}
+
+.card-subtitle {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  margin: -8px 0 16px;
+}
+
+.test-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.test-row:last-child {
+  border-bottom: none;
+}
+
+.test-row-info {
+  flex: 1;
+}
+
+.test-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.test-row-desc {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.test-row-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.test-result {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: right;
+  max-width: 280px;
+}
+
+.btn-amber {
+  border-color: var(--color-warning);
+  color: #8a5a00;
+}
+
+.btn-red {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.insight-error {
+  color: var(--color-error);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.venue-insight-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.venue-insight-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.insight-field {
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.insight-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.insight-field-action {
+  border-left: 3px solid var(--color-warning);
+  padding-left: 10px;
+}
+
+.ai-generated {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: right;
+  margin-top: 8px;
+}
+
+.insight-skeleton-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}

@@ -1,8 +1,9 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -21,11 +22,20 @@ app.add_middleware(
 
 
 @app.post("/sync")
-def sync(db: Session = Depends(get_db)):
+def trigger_sync(mode: str = "normal", db: Session = Depends(get_db)):
+    if mode not in ("normal", "flaky", "down"):
+        raise HTTPException(status_code=400, detail="mode must be normal, flaky, or down")
+    result = run_sync(db, mode=mode)
+    return result
+
+
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
     try:
-        return run_sync(db)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "db": "connected", "timestamp": datetime.utcnow().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail={"status": "error", "db": str(e)})
 
 
 @app.get("/venues")
@@ -67,6 +77,6 @@ def list_sync_logs(db: Session = Depends(get_db)):
 @app.post("/insights")
 def insights(db: Session = Depends(get_db)):
     try:
-        return {"insight": generate_insights(db)}
+        return generate_insights(db)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -1,3 +1,4 @@
+import json
 import os
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -11,7 +12,7 @@ from backend.models import AccessPoint, Session as WifiSession, Venue
 VENUE_TYPES = {"The Anchor": "pub", "Brew & Co": "cafe", "Eastside Hotel Lobby": "hotel"}
 DAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
 
-def generate_insights(db: Session) -> str:
+def generate_insights(db: Session) -> dict:
     since = datetime.utcnow() - timedelta(days=7)
     rows = (
         db.query(WifiSession.duration_seconds, WifiSession.connected_at, Venue.name)
@@ -21,7 +22,7 @@ def generate_insights(db: Session) -> str:
         .all()
     )
     if not rows:
-        return "No session data available yet. Run a sync first to generate insights."
+        return {"error": "No session data available yet. Run a sync first to generate insights."}
 
     stats = defaultdict(lambda: {"n": 0, "dur": [], "days": defaultdict(int), "hours": defaultdict(int)})
     for dur, at, name in rows:
@@ -33,13 +34,6 @@ def generate_insights(db: Session) -> str:
         s["days"][DAYS[at.weekday()]] += 1
         s["hours"][at.hour] += 1
 
-    header = (
-        "You are an analyst helping Wi-Fi venue operators understand guest behaviour.\n"
-        "Below is session data from the last 7 days. Give 3-4 specific actionable insights "
-        "a venue manager would find useful. Focus on: peak times, unusual patterns, "
-        "differences between venues, and opportunities. Be specific with numbers. "
-        "Do not use bullet points — write short punchy sentences.\n\n"
-    )
     lines = []
     for name, s in stats.items():
         avg = sum(s["dur"]) / s["n"] / 60
@@ -50,11 +44,32 @@ def generate_insights(db: Session) -> str:
             f"{100 * sum(d < 300 for d in s['dur']) / s['n']:.0f}% sessions under 5 min. "
             f"{100 * sum(d > 7200 for d in s['dur']) / s['n']:.0f}% over 2 hours."
         )
+    formatted_stats = "\n".join(lines)
+    prompt = f"""
+You are an analyst for a Wi-Fi venue platform. Analyse this session data and return 
+a JSON array. One object per venue. No markdown, no explanation, just valid JSON.
+
+Each object must have exactly these keys:
+- venue_name: string
+- summary: one sentence describing overall activity level and pattern
+- peak_time: specific day and time window with a number e.g. "Fridays 17:00-21:00 (avg 23 sessions)"
+- pattern: one unusual or notable observation with a specific number
+- action: one concrete recommendation the venue manager should act on
+
+Session data:
+{formatted_stats}
+
+Return only a JSON array. No backticks. No explanation.
+"""
     try:
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         model = genai.GenerativeModel("gemini-2.5-flash")
         with ThreadPoolExecutor(max_workers=1) as executor:
-            response = executor.submit(model.generate_content, header + "\n".join(lines)).result(timeout=30)
-        return response.text
+            response = executor.submit(model.generate_content, prompt).result(timeout=30)
+        try:
+            insights = json.loads(response.text)
+        except json.JSONDecodeError:
+            return {"error": "Could not parse AI response", "raw": response.text}
+        return {"venues": insights}
     except Exception:
-        return "Insights unavailable — AI service unreachable. Please try again."
+        return {"error": "Insights unavailable — AI service unreachable. Please try again."}

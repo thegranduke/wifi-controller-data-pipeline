@@ -2,7 +2,13 @@ import random
 from datetime import datetime, timedelta
 
 
-def get_controller_data():
+def get_controller_data(mode: str = "normal") -> dict:
+    if mode == "down":
+        raise ConnectionError("Wi-Fi controller unreachable — simulated outage")
+
+    if mode == "flaky" and random.random() < 0.6:
+        raise TimeoutError("Wi-Fi controller timed out — simulated flaky connection")
+
     venues = [
         {
             "network_id": "net_001",

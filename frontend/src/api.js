@@ -8,8 +8,8 @@ async function request(path, options = {}) {
   return response.json();
 }
 
-export function triggerSync() {
-  return request("/sync", { method: "POST" });
+export function triggerSync(mode = "normal") {
+  return request(`/sync?mode=${mode}`, { method: "POST" });
 }
 
 export function fetchVenues() {
@@ -33,4 +33,12 @@ export function fetchSyncLogs() {
 
 export function fetchInsights() {
   return request("/insights", { method: "POST" });
+}
+
+export async function fetchHealth() {
+  const response = await fetch(`${BASE_URL}/health`);
+  if (!response.ok) {
+    throw new Error("unhealthy");
+  }
+  return response.json();
 }
