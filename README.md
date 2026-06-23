@@ -356,16 +356,6 @@ conflict handling works with both SQLite in tests and Postgres in the app.
 - Add authentication/authorisation around sync and insights endpoints.
 
 
-## Submission Notes
-
-Submit:
-
-- GitHub repository link: `<add repository URL here>`.
-- Setup/run instructions: see **Running Locally**.
-- Assumptions: see **Assumptions**.
-- Improvements with more time: see **What I Would Improve With More Time**.
-- AI tools note: see below.
-
 ## AI Tool Usage
 
 I used Cursor/Claude as a pair-programming assistant to discuss data modelling,
