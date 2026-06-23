@@ -41,7 +41,7 @@ responses through Pydantic models. React displays the data in a simple dashboard
 collapsible cards, top-level KPIs, paginated sessions, session charts, AP
 drill-down, paginated sync history, live integration-test feedback, and
 structured AI insights per venue. Docker Compose runs the whole stack with local
-Postgres so a reviewer can test it without external services.
+Postgres so you can test it without external services.
 
 ## System Flow
 
@@ -73,7 +73,7 @@ flowchart LR
 
 ### Backend
 
-FastAPI is used because it fits this assignment well: small endpoints, automatic
+FastAPI is used: small endpoints, automatic
 OpenAPI docs, dependency injection for database sessions, and built-in request
 validation. The backend uses:
 
@@ -183,7 +183,7 @@ For production I would add prompt/version tracking, cached insight runs, stricte
 JSON-schema validation, background jobs for long-running insight generation, and
 monitoring for model failures. I would also review privacy carefully: avoiding
 sending device identifiers to the model
-define retention rules for prompts/responses.
+and define retention rules for prompts/responses.
 Cost-wise, I would not call the
 model on every page load; insights should be generated on demand or scheduled,
 cached, and invalidated when new sync data arrives.
@@ -355,16 +355,6 @@ conflict handling works with both SQLite in tests and Postgres in the app.
 - Move chart aggregation into a `/sessions/stats` endpoint for larger datasets.
 - Add authentication/authorisation around sync and insights endpoints.
 
-
-## Submission Notes
-
-Submit:
-
-- GitHub repository link: `<add repository URL here>`.
-- Setup/run instructions: see **Running Locally**.
-- Assumptions: see **Assumptions**.
-- Improvements with more time: see **What I Would Improve With More Time**.
-- AI tools note: see below.
 
 ## AI Tool Usage
 
