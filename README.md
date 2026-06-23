@@ -21,22 +21,23 @@ exponential backoff, and writes every sync result to an append-only log with the
 raw payload. React dashboard renders live charts (device breakdown, AP drill-down,
 peak hours), paginated session and sync-history tables, and structured Gemini
 insights per venue — all in collapsible cards with localStorage-persisted state.
-Five pytest integration tests cover idempotency, retry, failure modes, and health.
-Docker-compose runs the full stack in one command.
+Six pytest integration tests cover idempotency, retry, failure modes, health, and
+API validation. Docker Compose runs the full stack (Postgres + API + UI) in one command.
 
 ---
 
 ## Architecture
 
-**Backend:** FastAPI — chosen for its speed, automatic OpenAPI docs, and native
-Pydantic validation which is ideal for validating third-party payloads at the
-boundary.
+**Backend:** FastAPI with Pydantic response models (`backend/schemas.py`) on every
+endpoint — typed contracts in OpenAPI docs, response validation at serialisation,
+and ORM objects returned directly where possible. Query params use FastAPI's
+`Query(ge=, le=)` validators; sync `mode` is typed as `Literal["normal", "flaky", "down"]`
+so invalid values return 422 automatically.
 
-**Database:** Supabase (PostgreSQL) — four tables: venues, access_points, sessions,
-sync_logs. Supabase gives a managed Postgres instance with a clean dashboard for
-inspecting data during development. SQLite was not used — Supabase matches the
-production environment more closely and the session pooler URL works correctly
-with SQLAlchemy out of the box.
+**Database:** PostgreSQL — four tables: venues, access_points, sessions, sync_logs.
+Docker Compose runs a local Postgres 15 container for reviewers (no external accounts).
+Supabase remains an option for non-Docker local dev (see `.env.example`). Tables and
+indexes are created on startup via `Base.metadata.create_all()`.
 
 **Mock controller:** A single Python function shaped after Cisco Meraki's network
 API structure (`network_id` for sites, MAC for devices). Venues and access points
@@ -45,9 +46,10 @@ duration distributions per venue type, so data accumulates naturally and the AI
 insights improve over time. The controller also accepts a `mode` parameter
 (`normal` / `flaky` / `down`) to simulate real-world failure scenarios for testing.
 
-**Frontend:** React with Vite — single component tree, no state management
-library, Vercel-inspired design system. Card collapse state is persisted to
-`localStorage` so the dashboard remembers your layout across refreshes.
+**Frontend:** React with Vite — lean component split (`App.jsx`, `CollapsibleCard.jsx`,
+`SessionCharts.jsx`), no state management library, Vercel-inspired design system.
+Card collapse state is persisted to `localStorage` so the dashboard remembers your
+layout across refreshes.
 
 **AI:** Gemini Flash — session data is aggregated into per-venue statistics
 (count, avg duration, peak day/hour, % short/long sessions) and sent as a
@@ -123,6 +125,17 @@ the database. Missing fields cause that record to be skipped with a log warning,
 not a crash. In production, a provider changing their API response format should
 degrade gracefully, not take down the pipeline.
 
+### Pydantic response models
+Each endpoint declares a `response_model` — FastAPI validates outgoing data,
+generates accurate OpenAPI schemas at `/docs`, and lets handlers return SQLAlchemy
+ORM objects directly (`from_attributes=True`). Input validation uses native FastAPI
+features: `Literal` for enum-like params, `Query(ge=, le=)` for pagination bounds.
+
+### Query indexes
+Indexes on `sessions.connected_at`, `sessions.access_point_id`, `access_points.venue_id`,
+and `sync_logs.synced_at` — the columns used in every `ORDER BY` and `JOIN`. Cheap
+to add, meaningful once session volume grows beyond a demo dataset.
+
 ---
 
 ## Frontend decisions
@@ -159,7 +172,7 @@ interaction model consistent.
 
 ## Testing
 
-Five pytest integration tests run against an in-memory SQLite database:
+Six pytest integration tests run against an in-memory SQLite database:
 
 | Test | What it verifies |
 |------|-----------------|
@@ -167,7 +180,8 @@ Five pytest integration tests run against an in-memory SQLite database:
 | `test_sessions_grow_each_sync` | Sessions accumulate — second sync adds new rows rather than overwriting |
 | `test_controller_down_writes_failed_log` | Failed syncs write a `failed` log with an error message |
 | `test_health_returns_ok` | Health endpoint reaches the database and returns `ok` |
-| `test_invalid_sync_mode_rejected` | Unknown mode parameters return HTTP 400 |
+| `test_invalid_sync_mode_rejected` | Unknown mode parameters return HTTP 422 (FastAPI `Literal` validation) |
+| `test_insights_returns_sample_without_api_key` | Insights work without Gemini — sample data returned when no API key |
 
 The tests use an `on_conflict_do_nothing` / `on_conflict_do_update` helper
 (`_insert`) that generates dialect-correct SQL for both SQLite and PostgreSQL,
@@ -212,11 +226,17 @@ the charts fast regardless of session volume.
 git clone <repo>
 cd wifi-controller-data-pipeline
 
+# Requires Docker Desktop or docker service running:
+#   sudo systemctl start docker   (Linux)
+#   docker ps                     (should not error)
+
 # Optional: add your Gemini key for live AI insights (sample insights work without it)
 echo "GEMINI_API_KEY=your_key_here" > .env
 
-docker-compose up --build
+docker compose up --build
 ```
+
+> Use `docker compose` (v2) or `docker-compose` (v1) — both work.
 
 - Frontend: http://localhost:5173
 - Backend API docs: http://localhost:8000/docs
@@ -273,9 +293,8 @@ I can explain any of them in the follow-up review.
   bconnect would integrate with.
 - Sessions are treated as immutable once written. A re-connection by the same
   device is a new session, not an update to an existing one.
-- Supabase Postgres was used rather than SQLite because it matches the production
-  environment more closely and the dashboard for inspecting data is genuinely
-  useful during development.
+- Docker uses local Postgres so reviewers need no Supabase account. Supabase is
+  still supported for non-Docker development via `DATABASE_URL` in `.env`.
 - The `flaky` mode uses a 70% failure rate per attempt. With 3 retries this gives
   roughly a 97% chance of eventual success, which exercises the retry path without
   making tests non-deterministic in a way that's hard to reason about.
