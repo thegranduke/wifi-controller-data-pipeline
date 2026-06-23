@@ -67,11 +67,22 @@ def list_sessions(venue_id: UUID | None = None, limit: int = 100, offset: int = 
 
 
 @app.get("/sync-logs")
-def list_sync_logs(db: Session = Depends(get_db)):
-    return [
-        {"id": log.id, "status": log.status, "venues_synced": log.venues_synced, "aps_synced": log.aps_synced, "sessions_synced": log.sessions_synced, "error_message": log.error_message, "synced_at": log.synced_at}
-        for log in db.query(SyncLog).order_by(SyncLog.synced_at.desc()).limit(10).all()
-    ]
+def list_sync_logs(limit: int = 10, offset: int = 0, db: Session = Depends(get_db)):
+    rows = (
+        db.query(SyncLog, func.count(SyncLog.id).over().label("total"))
+        .order_by(SyncLog.synced_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    total = rows[0][1] if rows else 0
+    return {
+        "total": total,
+        "logs": [
+            {"id": log.id, "status": log.status, "venues_synced": log.venues_synced, "aps_synced": log.aps_synced, "sessions_synced": log.sessions_synced, "error_message": log.error_message, "synced_at": log.synced_at}
+            for log, _ in rows
+        ],
+    }
 
 
 @app.post("/insights")

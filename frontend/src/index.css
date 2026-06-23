@@ -58,7 +58,56 @@ body {
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-bottom: 16px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font);
+  gap: 8px;
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-body {
+  margin-top: 16px;
+  animation: cardOpen 0.18s ease;
+}
+
+@keyframes cardOpen {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-badge {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 1px 7px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  color: var(--color-text-tertiary);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
 }
 
 .btn {
@@ -162,9 +211,26 @@ tr:last-child td {
 }
 
 .stat-value {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.stat-value-sm {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.stat-status {
+  margin-top: 8px;
+}
+
+.stat-dash {
+  font-size: 20px;
+  color: var(--color-text-tertiary);
 }
 
 .insight-box {
@@ -182,9 +248,147 @@ tr:last-child td {
   display: flex;
   gap: 8px;
   align-items: center;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border-dark);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.view-toggle-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  background: white;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.1s;
+  font-family: var(--font);
+}
+
+.view-toggle-btn + .view-toggle-btn {
+  border-left: 1px solid var(--color-border-dark);
+}
+
+.view-toggle-btn.active {
+  background: var(--color-text);
+  color: white;
+}
+
+.view-toggle-btn:hover:not(.active) {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.insights-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.insight-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.insight-nav-label {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.insight-nav-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.chart-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 12px 8px;
+}
+
+.chart-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.chart-hint {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chart-loading {
+  padding: 32px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.drill-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 12px;
   font-size: 13px;
   color: var(--color-text-secondary);
+}
+
+.drill-sep {
+  color: var(--color-text-tertiary);
+}
+
+.drill-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-accent);
+  font-family: var(--font);
+}
+
+.btn-link:hover {
+  text-decoration: underline;
 }
 
 .empty {
@@ -192,12 +396,6 @@ tr:last-child td {
   padding: 32px;
   color: var(--color-text-tertiary);
   font-size: 13px;
-}
-
-.sync-status {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-top: 8px;
 }
 
 .filter-row {
@@ -315,6 +513,18 @@ tr:last-child td {
   color: var(--color-text-secondary);
   text-align: right;
   max-width: 280px;
+}
+
+.test-status {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  text-align: right;
+  max-width: 280px;
+}
+
+.test-result-error {
+  color: #c53030;
 }
 
 .btn-amber {

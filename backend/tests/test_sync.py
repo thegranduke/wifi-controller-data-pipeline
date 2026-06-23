@@ -15,7 +15,7 @@ def test_sessions_grow_each_sync(client):
 
 def test_controller_down_writes_failed_log(client):
     client.post("/sync?mode=down")
-    logs = client.get("/sync-logs").json()
+    logs = client.get("/sync-logs").json()["logs"]
     assert logs[0]["status"] == "failed"
     assert logs[0]["error_message"] is not None
 

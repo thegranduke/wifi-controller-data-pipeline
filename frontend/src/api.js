@@ -16,6 +16,16 @@ export function fetchVenues() {
   return request("/venues");
 }
 
+export function fetchAccessPoints() {
+  return request("/access-points");
+}
+
+export function fetchSessionsAll(venueId, limit = 500) {
+  const params = new URLSearchParams({ limit: String(limit), offset: "0" });
+  if (venueId) params.set("venue_id", venueId);
+  return request(`/sessions?${params}`).then((d) => d.sessions);
+}
+
 export function fetchSessions(venueId, page) {
   const params = new URLSearchParams({
     limit: "20",
@@ -27,8 +37,9 @@ export function fetchSessions(venueId, page) {
   return request(`/sessions?${params}`);
 }
 
-export function fetchSyncLogs() {
-  return request("/sync-logs");
+export function fetchSyncLogs(page = 0, limit = 10) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(page * limit) });
+  return request(`/sync-logs?${params}`);
 }
 
 export function fetchInsights() {

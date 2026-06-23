@@ -113,6 +113,7 @@ def run_sync(db: Session, mode: str = "normal") -> dict:
                     "aps_synced": 0,
                     "sessions_synced": 0,
                     "attempts": attempts,
+                    "error_message": str(exc),
                 }
             time.sleep(2**attempt)
         except Exception as exc:
@@ -123,6 +124,7 @@ def run_sync(db: Session, mode: str = "normal") -> dict:
                 "aps_synced": 0,
                 "sessions_synced": 0,
                 "attempts": attempts,
+                "error_message": str(exc),
             }
 
     venues, access_points, sessions = _validate_payload(payload)
@@ -238,6 +240,7 @@ def run_sync(db: Session, mode: str = "normal") -> dict:
             "aps_synced": 0,
             "sessions_synced": 0,
             "attempts": attempts,
+            "error_message": str(exc),
         }
 
     _write_sync_log(
