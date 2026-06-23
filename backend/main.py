@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime
 from uuid import UUID
 
@@ -6,12 +7,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
+from backend import database as _db
 from backend.database import get_db
 from backend.insights import generate_insights
-from backend.models import AccessPoint, Session as WifiSession, SyncLog, Venue
+from backend.models import AccessPoint, Base, Session as WifiSession, SyncLog, Venue
 from backend.sync import run_sync
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Access engine via module so tests can patch backend.database.engine
+    Base.metadata.create_all(bind=_db.engine)
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],

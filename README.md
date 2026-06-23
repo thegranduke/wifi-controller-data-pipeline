@@ -205,33 +205,45 @@ the charts fast regardless of session volume.
 
 ## Running locally
 
-1. Clone the repo
+### With Docker (recommended — no external accounts needed)
 
-2. Create `.env` at the repo root:
+```bash
+git clone <repo>
+cd wifi-controller-data-pipeline
+
+# Optional: add your Gemini key for the AI insights card
+echo "GEMINI_API_KEY=your_key_here" > .env
+
+docker-compose up --build
+```
+
+- Frontend: http://localhost:5173
+- Backend API docs: http://localhost:8000/docs
+
+Docker-compose starts a local Postgres container, waits for it to be healthy,
+starts the backend (which auto-creates all tables on first boot), then starts
+the frontend. No Supabase account or external database needed.
+
+### Without Docker
+
+1. Start a local Postgres instance (or use Supabase — see `.env.example`)
+
+2. Create `.env` at the repo root (copy from `.env.example`):
    ```
-   DATABASE_URL=your_supabase_connection_string
-   GEMINI_API_KEY=your_gemini_api_key
+   DATABASE_URL=postgresql://user:password@localhost:5432/bconnect
+   GEMINI_API_KEY=your_gemini_api_key   # optional
    ```
 
-3. Run the tables in Supabase SQL editor (schema is in `schema.sql`)
-
-4. **With Docker:**
-   ```bash
-   docker-compose up --build
-   ```
-
-5. **Without Docker:**
-   ```bash
+3. ```bash
    # Backend
-   cd backend && pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    uvicorn backend.main:app --reload --port 8000
 
    # Frontend (separate terminal)
    cd frontend && npm install && npm run dev
    ```
 
-Frontend: http://localhost:5173  
-Backend docs: http://localhost:8000/docs
+Tables are created automatically on first startup via `Base.metadata.create_all()`.
 
 ---
 
