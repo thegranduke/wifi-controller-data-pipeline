@@ -241,11 +241,16 @@ docker compose up --build
 - Frontend: http://localhost:5173
 - Backend API docs: http://localhost:8000/docs
 
-Docker-compose starts a local Postgres container, waits for it to be healthy,
+Docker Compose starts a local Postgres container, waits for it to be healthy,
 starts the backend (which auto-creates all tables on first boot), then starts
-the frontend. No Supabase account or external database needed.
+the frontend. No Supabase account or external database needed. Postgres is not
+exposed on the host (only inside the Docker network), so it won't clash with a
+local Postgres install on port 5432.
 
-**Quick smoke test after `docker-compose up`:**
+**If ports 8000 or 5173 are already in use** (e.g. you have uvicorn or `npm run dev` running):
+stop those processes first, or run `kill $(lsof -t -i :8000)` / `kill $(lsof -t -i :5173)`.
+
+**Quick smoke test after `docker compose up`:**
 1. Open http://localhost:5173 — health dot should show "Connected"
 2. Click **Sync now** — venues and sessions populate
 3. Open **Sessions** → switch to **Chart** — bars and drill-down work
