@@ -81,13 +81,16 @@ export default function SessionCharts({ sessions, accessPoints, loading }) {
             <div className="chart-label">
               By access point <span className="chart-hint">click to drill in</span>
             </div>
-            <ResponsiveContainer width="100%" height={Math.max(100, byAp.length * 52)}>
-              <BarChart data={byAp} margin={{ left: 8, right: 8, top: 4, bottom: byAp.length > 2 ? 36 : 20 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} />
-                <YAxis hide />
+            <ResponsiveContainer width="100%" height={Math.max(120, byAp.length * 36)}>
+              <BarChart layout="vertical" data={byAp} margin={{ left: 8, right: 28, top: 4, bottom: 4 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "#f5f5f5" }} contentStyle={tooltipStyle} />
-                <Bar dataKey="count" fill={BAR_COLOR} radius={[3, 3, 0, 0]} cursor="pointer"
-                  onClick={(data) => data.id && setDrillAp({ id: data.id, name: data.name })} />
+                <Bar dataKey="count" fill={BAR_COLOR} radius={[0, 3, 3, 0]} cursor="pointer"
+                  onClick={(_, index) => {
+                    const row = byAp[index];
+                    if (row) setDrillAp({ id: row.id, name: row.name });
+                  }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
