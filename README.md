@@ -250,6 +250,9 @@ local Postgres install on port 5432.
 **If ports 8000 or 5173 are already in use** (e.g. you have uvicorn or `npm run dev` running):
 stop those processes first, or run `kill $(lsof -t -i :8000)` / `kill $(lsof -t -i :5173)`.
 
+The frontend calls `/api/*` on the same origin; Vite proxies those requests to the backend.
+You do not need to open port 8000 in the browser — only http://localhost:5173.
+
 **Quick smoke test after `docker compose up`:**
 1. Open http://localhost:5173 — health dot should show "Connected"
 2. Click **Sync now** — venues and sessions populate
