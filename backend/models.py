@@ -37,7 +37,7 @@ class AccessPoint(Base):
     mac = Column(String, unique=True, nullable=False)
     name = Column(String)
     model = Column(String)
-    venue_id = Column(Uuid, ForeignKey("venues.id"))
+    venue_id = Column(Uuid, ForeignKey("venues.id"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -50,8 +50,8 @@ class Session(Base):
     client_mac = Column(String)
     device_type = Column(String)
     duration_seconds = Column(Integer)
-    connected_at = Column(DateTime)
-    access_point_id = Column(Uuid, ForeignKey("access_points.id"))
+    connected_at = Column(DateTime, index=True)
+    access_point_id = Column(Uuid, ForeignKey("access_points.id"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -65,4 +65,4 @@ class SyncLog(Base):
     sessions_synced = Column(Integer)
     error_message = Column(String, nullable=True)
     raw_payload = Column(JSON, nullable=True)
-    synced_at = Column(DateTime, default=datetime.utcnow)
+    synced_at = Column(DateTime, default=datetime.utcnow, index=True)

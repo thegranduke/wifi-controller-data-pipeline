@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useState } from "react";
+import CollapsibleCard from "./CollapsibleCard";
+import SessionCharts from "./SessionCharts";
 import {
   fetchAccessPoints, fetchHealth, fetchInsights, fetchSessions,
   fetchSessionsAll, fetchSyncLogs, fetchVenues, triggerSync,
@@ -7,7 +8,6 @@ import {
 
 const fmtDate = (v) => v ? new Date(v).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const fmtMin = (s) => `${Math.round((s || 0) / 60)} min`;
-const BAR_COLOR = "#0070f3";
 
 const syncStatusMsg = (mode, ms) => {
   if (mode === "normal") return "Syncing venues, APs, and sessions…";
@@ -17,17 +17,11 @@ const syncStatusMsg = (mode, ms) => {
   if (ms < 8000) return "Attempt 2 failed — retrying (2s backoff)…";
   return "Attempt 3 — final try…";
 };
+
 const failMsg = (r) => {
   const base = `Failed after ${r.attempts} attempt${r.attempts > 1 ? "s" : ""}`;
   return r.error_message ? `${base} — ${r.error_message}` : base;
 };
-
-function useLocalStorage(key, init) {
-  const [v, set] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(key)) ?? init; } catch { return init; }
-  });
-  return [v, (val) => { set(val); localStorage.setItem(key, JSON.stringify(val)); }];
-}
 
 const Skel = ({ w = "100%" }) => <div className="skeleton" style={{ width: w }} />;
 const TableSkel = ({ cols = 5, rows = 5 }) => (
@@ -36,163 +30,32 @@ const TableSkel = ({ cols = 5, rows = 5 }) => (
   ))}</tbody></table>
 );
 
-const ChevronIcon = ({ open }) => (
-  <svg className={`chevron${open ? " open" : ""}`} width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-function CollapsibleCard({ id, title, badge, subtitle, defaultOpen = true, children }) {
-  const [open, setOpen] = useLocalStorage(`card-${id}`, defaultOpen);
-  return (
-    <div className="card">
-      <button className="card-header" onClick={() => setOpen(!open)}>
-        <div className="card-header-left">
-          <span className="card-title">{title}</span>
-          {badge != null && <span className="card-badge">{badge}</span>}
-        </div>
-        <ChevronIcon open={open} />
-      </button>
-      {open && (
-        <div className="card-body">
-          {subtitle && <p className="card-subtitle">{subtitle}</p>}
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const tooltipStyle = { fontSize: 12, border: "1px solid #eaeaea", borderRadius: 5, boxShadow: "none" };
-
-function SessionCharts({ sessions, accessPoints, loading }) {
-  const [drillAp, setDrillAp] = useState(null);
-
-  const apMap = useMemo(() => Object.fromEntries(accessPoints.map((ap) => [ap.id, ap])), [accessPoints]);
-  const filtered = drillAp ? sessions.filter((s) => s.access_point_id === drillAp.id) : sessions;
-
-  const byDevice = useMemo(() => {
-    const c = {};
-    filtered.forEach((s) => { const k = s.device_type || "unknown"; c[k] = (c[k] || 0) + 1; });
-    return Object.entries(c).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [filtered]);
-
-  const byAp = useMemo(() => {
-    if (drillAp) return [];
-    const c = {};
-    sessions.forEach((s) => {
-      const ap = apMap[s.access_point_id];
-      if (!ap) return;
-      if (!c[ap.id]) c[ap.id] = { id: ap.id, name: ap.name, count: 0 };
-      c[ap.id].count++;
-    });
-    return Object.values(c).sort((a, b) => b.count - a.count);
-  }, [sessions, apMap, drillAp]);
-
-  const byHour = useMemo(() => {
-    const h = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}`, count: 0 }));
-    filtered.forEach((s) => { if (s.connected_at) h[new Date(s.connected_at).getHours()].count++; });
-    return h;
-  }, [filtered]);
-
-  if (loading) return <div className="chart-loading">Loading chart data…</div>;
-  if (!sessions.length) return <div className="empty">No sessions yet — run a sync first</div>;
-
-  const chartH = Math.max(100, byDevice.length * 36);
-
-  return (
-    <>
-      {drillAp && (
-        <div className="drill-crumb">
-          <button className="btn-link" onClick={() => setDrillAp(null)}>← All APs</button>
-          <span className="drill-sep">/</span>
-          <span className="drill-name">{drillAp.name}</span>
-        </div>
-      )}
-      <div className="chart-grid">
-        <div className="chart-card">
-          <div className="chart-label">By device type</div>
-          <ResponsiveContainer width="100%" height={chartH}>
-            <BarChart layout="vertical" data={byDevice} margin={{ left: 8, right: 28, top: 4, bottom: 4 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={72} tick={{ fontSize: 12, fill: "#666" }} axisLine={false} tickLine={false} />
-              <Tooltip cursor={{ fill: "#f5f5f5" }} contentStyle={tooltipStyle} />
-              <Bar dataKey="count" fill={BAR_COLOR} radius={[0, 3, 3, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {drillAp ? (
-          <div className="chart-card">
-            <div className="chart-label">Peak hours</div>
-            <ResponsiveContainer width="100%" height={chartH}>
-              <BarChart data={byHour} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
-                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#999" }} axisLine={false} tickLine={false} interval={2} />
-                <YAxis hide />
-                <Tooltip cursor={{ fill: "#f5f5f5" }} contentStyle={tooltipStyle} />
-                <Bar dataKey="count" fill="#0070f3" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="chart-card">
-            <div className="chart-label">
-              By access point{" "}
-              <span className="chart-hint">click to drill in</span>
-            </div>
-            <ResponsiveContainer width="100%" height={Math.max(100, byAp.length * 52)}>
-              <BarChart data={byAp} margin={{ left: 8, right: 8, top: 4, bottom: byAp.length > 2 ? 36 : 20 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip cursor={{ fill: "#f5f5f5" }} contentStyle={tooltipStyle} />
-                <Bar dataKey="count" fill="#0070f3" radius={[3, 3, 0, 0]} cursor="pointer"
-                  onClick={(data) => data.id && setDrillAp({ id: data.id, name: data.name })} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-
-      {!drillAp && (
-        <div className="chart-card" style={{ marginTop: 12 }}>
-          <div className="chart-label">Peak hours</div>
-          <ResponsiveContainer width="100%" height={80}>
-            <BarChart data={byHour} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
-              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#999" }} axisLine={false} tickLine={false} interval={1} />
-              <YAxis hide />
-              <Tooltip cursor={{ fill: "#f5f5f5" }} contentStyle={tooltipStyle} />
-              <Bar dataKey="count" fill="#0070f3" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </>
-  );
-}
-
 export default function App() {
   const [venues, setVenues] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(0);
   const [selectedVenue, setSelectedVenue] = useState(null);
+  const [sessionView, setSessionView] = useState("list");
+  const [allSessions, setAllSessions] = useState([]);
+  const [accessPoints, setAccessPoints] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [chartLoading, setChartLoading] = useState(false);
+
   const [syncLogs, setSyncLogs] = useState([]);
   const [syncLogTotal, setSyncLogTotal] = useState(0);
   const [syncLogPage, setSyncLogPage] = useState(0);
   const [lastLog, setLastLog] = useState(null);
   const [syncing, setSyncing] = useState(false);
+
   const [insights, setInsights] = useState(null);
   const [insightIdx, setInsightIdx] = useState(0);
   const [insightLoading, setInsightLoading] = useState(false);
-  const [loading, setLoading] = useState(false);
+
   const [health, setHealth] = useState("loading");
   const [testResults, setTestResults] = useState({ normal: "", flaky: "", down: "" });
   const [runningTest, setRunningTest] = useState(null);
   const [testStatus, setTestStatus] = useState("");
-  const [sessionView, setSessionView] = useState("list");
-  const [allSessions, setAllSessions] = useState([]);
-  const [accessPoints, setAccessPoints] = useState([]);
-  const [chartLoading, setChartLoading] = useState(false);
 
   const reloadData = async () => {
     const [v, logs, latest, s] = await Promise.all([
@@ -207,9 +70,7 @@ export default function App() {
     setLastLog(latest.logs[0] ?? null);
     setSessions(s.sessions);
     setSessionTotal(s.total);
-    if (sessionView === "chart") {
-      fetchSessionsAll(selectedVenue).then(setAllSessions);
-    }
+    if (sessionView === "chart") fetchSessionsAll(selectedVenue).then(setAllSessions);
   };
 
   useEffect(() => { fetchVenues().then(setVenues); }, []);
@@ -217,7 +78,8 @@ export default function App() {
 
   useEffect(() => {
     fetchSyncLogs(syncLogPage).then((d) => {
-      setSyncLogs(d.logs); setSyncLogTotal(d.total);
+      setSyncLogs(d.logs);
+      setSyncLogTotal(d.total);
       if (syncLogPage === 0) setLastLog(d.logs[0] ?? null);
     });
   }, [syncLogPage]);
@@ -247,28 +109,22 @@ export default function App() {
     try { await triggerSync(); await reloadData(); } finally { setSyncing(false); }
   };
 
-  const handleInsights = async (fromTest = false) => {
+  const handleInsights = async () => {
     setInsightLoading(true);
-    if (fromTest) {
-      setRunningTest("insights"); setTestStatus("Generating insights with Gemini…");
-      setTestResults({ normal: "", flaky: "", down: "", insights: "" });
-    }
     try {
       const data = await fetchInsights();
       setInsights(data);
       setInsightIdx(0);
-      if (fromTest) setTestResults((r) => ({ ...r, insights: data.error ? data.error : `Generated insights for ${data.venues?.length || 0} venues` }));
     } catch (e) {
       setInsights({ error: e.message });
-      if (fromTest) setTestResults((r) => ({ ...r, insights: e.message }));
     } finally {
       setInsightLoading(false);
-      if (fromTest) { setRunningTest(null); setTestStatus(""); }
     }
   };
 
   const runTest = async (key, mode) => {
-    setRunningTest(key); setTestStatus(syncStatusMsg(mode, 0));
+    setRunningTest(key);
+    setTestStatus(syncStatusMsg(mode, 0));
     setTestResults({ normal: "", flaky: "", down: "" });
     const started = Date.now();
     const ticker = setInterval(() => setTestStatus(syncStatusMsg(mode, Date.now() - started)), 400);
@@ -287,7 +143,9 @@ export default function App() {
     } catch (e) {
       setTestResults((r) => ({ ...r, [key]: e.message }));
     } finally {
-      clearInterval(ticker); setRunningTest(null); setTestStatus("");
+      clearInterval(ticker);
+      setRunningTest(null);
+      setTestStatus("");
     }
   };
 
@@ -295,7 +153,6 @@ export default function App() {
   const sessionEnd = Math.min((sessionPage + 1) * 20, sessionTotal);
   const logStart = syncLogTotal ? syncLogPage * 10 + 1 : 0;
   const logEnd = Math.min((syncLogPage + 1) * 10, syncLogTotal);
-  const testBusy = runningTest !== null;
 
   return (
     <div className="container">
@@ -361,29 +218,34 @@ export default function App() {
             </div>
           )}
         </div>
-        {sessionView === "list" ? (
-          loading ? <TableSkel cols={5} rows={6} /> : sessions.length === 0 ? <div className="empty">No sessions yet — run a sync first</div> : (
-            <table>
-              <thead><tr><th>Device</th><th>Type</th><th>Duration</th><th>Connected at</th><th>Access point</th></tr></thead>
-              <tbody>{sessions.map((s) => (
-                <tr key={s.id}>
-                  <td>{s.client_mac}</td><td>{s.device_type}</td><td>{fmtMin(s.duration_seconds)}</td>
-                  <td>{fmtDate(s.connected_at)}</td><td>{String(s.access_point_id).slice(0, 8)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          )
-        ) : (
-          <SessionCharts key={selectedVenue || "all"} sessions={allSessions} accessPoints={accessPoints} loading={chartLoading} />
-        )}
+        {sessionView === "list"
+          ? loading
+            ? <TableSkel cols={5} rows={6} />
+            : sessions.length === 0
+              ? <div className="empty">No sessions yet — run a sync first</div>
+              : (
+                <table>
+                  <thead><tr><th>Device</th><th>Type</th><th>Duration</th><th>Connected at</th><th>Access point</th></tr></thead>
+                  <tbody>{sessions.map((s) => (
+                    <tr key={s.id}>
+                      <td>{s.client_mac}</td><td>{s.device_type}</td><td>{fmtMin(s.duration_seconds)}</td>
+                      <td>{fmtDate(s.connected_at)}</td><td>{String(s.access_point_id).slice(0, 8)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              )
+          : <SessionCharts key={selectedVenue || "all"} sessions={allSessions} accessPoints={accessPoints} loading={chartLoading} />
+        }
       </CollapsibleCard>
 
       <CollapsibleCard id="insights" title="AI Insights" badge={insights?.venues?.length ?? null}>
         <div className="insights-header">
           <p className="insight-note" style={{ margin: 0 }}>
-            {insights?.demo ? "Showing sample insights — add GEMINI_API_KEY for live Gemini output" : "Analyses session data across all venues using Gemini"}
+            {insights?.demo
+              ? "Showing sample insights — add GEMINI_API_KEY for live Gemini output"
+              : "Analyses session data across all venues using Gemini"}
           </p>
-          <button className="btn btn-primary" onClick={() => handleInsights(false)} disabled={insightLoading}>
+          <button className="btn btn-primary" onClick={handleInsights} disabled={insightLoading}>
             {insightLoading ? "Generating…" : "Generate"}
           </button>
         </div>
@@ -450,10 +312,12 @@ export default function App() {
           <div className="test-row" key={key}>
             <div className="test-row-info"><div className="test-row-label">{label}</div><div className="test-row-desc">{desc}</div></div>
             <div className="test-row-action">
-              <button className={cls} onClick={() => runTest(key, key)} disabled={testBusy}>{runningTest === key ? "Running…" : btn}</button>
-              {runningTest === key ? <div className="test-status">{testStatus}</div>
-                : testResults[key] ? <div className={`test-result${testResults[key].startsWith("Failed") ? " test-result-error" : ""}`}>{testResults[key]}</div>
-                : null}
+              <button className={cls} onClick={() => runTest(key, key)} disabled={runningTest !== null}>{runningTest === key ? "Running…" : btn}</button>
+              {runningTest === key
+                ? <div className="test-status">{testStatus}</div>
+                : testResults[key]
+                  ? <div className={`test-result${testResults[key].startsWith("Failed") ? " test-result-error" : ""}`}>{testResults[key]}</div>
+                  : null}
             </div>
           </div>
         ))}

@@ -27,8 +27,9 @@ def test_health_returns_ok(client):
 
 
 def test_invalid_sync_mode_rejected(client):
+    # FastAPI validates Literal types and returns 422 Unprocessable Entity
     response = client.post("/sync?mode=explode")
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_insights_returns_sample_without_api_key(client, monkeypatch):
