@@ -9,19 +9,69 @@ import {
 const fmtDate = (v) => v ? new Date(v).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const fmtMin = (s) => `${Math.round((s || 0) / 60)} min`;
 
-const syncStatusMsg = (mode, ms) => {
-  if (mode === "normal") return "Syncing venues, APs, and sessions…";
-  if (ms < 1000) return "Attempt 1 — contacting controller…";
-  if (ms < 3000) return "Attempt 1 failed — retrying (1s backoff)…";
-  if (ms < 5000) return "Attempt 2 — contacting controller…";
-  if (ms < 8000) return "Attempt 2 failed — retrying (2s backoff)…";
-  return "Attempt 3 — final try…";
-};
+const RETRY_PHASES = [
+  { at: 0, text: "Attempt 1 — contacting controller" },
+  { at: 300, text: "Attempt 1 failed — waiting 1s before retry" },
+  { at: 1300, text: "Attempt 2 — contacting controller" },
+  { at: 1600, text: "Attempt 2 failed — waiting 2s before retry" },
+  { at: 3600, text: "Attempt 3 — final try" },
+];
+
+const successMsg = (r) =>
+  `Synced ${r.venues_synced} venues, ${r.aps_synced} APs, ${r.sessions_synced} sessions`;
 
 const failMsg = (r) => {
   const base = `Failed after ${r.attempts} attempt${r.attempts > 1 ? "s" : ""}`;
   return r.error_message ? `${base} — ${r.error_message}` : base;
 };
+
+const formatSyncResult = (mode, result) => {
+  if (result.status === "failed") return failMsg(result);
+  if (mode === "flaky" && result.attempts > 1) {
+    return `Succeeded after ${result.attempts} attempts — ${successMsg(result)}`;
+  }
+  return successMsg(result);
+};
+
+const progressSteps = (mode, ms) => {
+  if (mode === "normal") {
+    return [{ text: "Syncing venues, APs, and sessions…", state: "active" }];
+  }
+  const steps = [];
+  for (let i = 0; i < RETRY_PHASES.length; i++) {
+    const { at, text } = RETRY_PHASES[i];
+    if (ms < at) break;
+    const nextAt = RETRY_PHASES[i + 1]?.at ?? Infinity;
+    steps.push({ text, state: ms >= nextAt ? "done" : "active" });
+  }
+  return steps;
+};
+
+const completedAttemptSteps = (result) => {
+  const steps = [];
+  for (let i = 1; i <= result.attempts; i++) {
+    const isLast = i === result.attempts;
+    if (result.status === "success" && isLast) {
+      steps.push({ text: `Attempt ${i} — succeeded`, state: "done" });
+    } else if (result.status === "failed" && isLast) {
+      steps.push({ text: `Attempt ${i} — failed`, state: "failed" });
+    } else {
+      steps.push({ text: `Attempt ${i} — failed`, state: "done" });
+    }
+  }
+  return steps;
+};
+
+function AttemptSteps({ steps }) {
+  if (!steps.length) return null;
+  return (
+    <ul className="attempt-steps">
+      {steps.map((s, i) => (
+        <li key={i} className={`attempt-step attempt-step-${s.state}`}>{s.text}</li>
+      ))}
+    </ul>
+  );
+}
 
 const Skel = ({ w = "100%" }) => <div className="skeleton" style={{ width: w }} />;
 const TableSkel = ({ cols = 5, rows = 5 }) => (
@@ -47,6 +97,8 @@ export default function App() {
   const [syncLogPage, setSyncLogPage] = useState(0);
   const [lastLog, setLastLog] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncSteps, setSyncSteps] = useState([]);
+  const [syncResult, setSyncResult] = useState("");
 
   const [insights, setInsights] = useState(null);
   const [insightIdx, setInsightIdx] = useState(0);
@@ -54,8 +106,9 @@ export default function App() {
 
   const [health, setHealth] = useState("loading");
   const [testResults, setTestResults] = useState({ normal: "", flaky: "", down: "" });
+  const [testAttemptSteps, setTestAttemptSteps] = useState({ normal: [], flaky: [], down: [] });
+  const [liveTestSteps, setLiveTestSteps] = useState([]);
   const [runningTest, setRunningTest] = useState(null);
-  const [testStatus, setTestStatus] = useState("");
 
   const reloadData = async () => {
     const [v, logs, latest, s] = await Promise.all([
@@ -106,7 +159,19 @@ export default function App() {
 
   const handleSync = async () => {
     setSyncing(true);
-    try { await triggerSync(); await reloadData(); } finally { setSyncing(false); }
+    setSyncResult("");
+    setSyncSteps(progressSteps("normal", 0));
+    try {
+      const result = await triggerSync();
+      await reloadData();
+      setSyncResult(formatSyncResult("normal", result));
+      setSyncSteps([]);
+    } catch (e) {
+      setSyncResult(e.message);
+      setSyncSteps([]);
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleInsights = async () => {
@@ -124,28 +189,26 @@ export default function App() {
 
   const runTest = async (key, mode) => {
     setRunningTest(key);
-    setTestStatus(syncStatusMsg(mode, 0));
+    setLiveTestSteps(progressSteps(mode, 0));
     setTestResults({ normal: "", flaky: "", down: "" });
+    setTestAttemptSteps({ normal: [], flaky: [], down: [] });
     const started = Date.now();
-    const ticker = setInterval(() => setTestStatus(syncStatusMsg(mode, Date.now() - started)), 400);
+    const ticker = setInterval(() => {
+      if (mode !== "normal") setLiveTestSteps(progressSteps(mode, Date.now() - started));
+    }, 300);
     try {
       const result = await triggerSync(mode);
       await reloadData();
-      if (key === "normal") {
-        setTestResults((r) => ({ ...r, normal: `Synced ${result.venues_synced} venues, ${result.aps_synced} APs, ${result.sessions_synced} sessions` }));
-      } else if (key === "flaky") {
-        setTestResults((r) => ({ ...r, flaky: result.status === "success"
-          ? (result.attempts > 1 ? `Succeeded after ${result.attempts} attempts (${result.attempts - 1} retr${result.attempts > 2 ? "ies" : "y"})` : "Succeeded on first attempt")
-          : failMsg(result) }));
-      } else {
-        setTestResults((r) => ({ ...r, down: result.status === "failed" ? failMsg(result) : `Synced ${result.sessions_synced} sessions` }));
+      setTestResults((r) => ({ ...r, [key]: formatSyncResult(mode, result) }));
+      if (mode !== "normal") {
+        setTestAttemptSteps((s) => ({ ...s, [key]: completedAttemptSteps(result) }));
       }
     } catch (e) {
       setTestResults((r) => ({ ...r, [key]: e.message }));
     } finally {
       clearInterval(ticker);
+      setLiveTestSteps([]);
       setRunningTest(null);
-      setTestStatus("");
     }
   };
 
@@ -163,9 +226,17 @@ export default function App() {
             <span className={`health-dot ${health === "ok" ? "ok" : health === "error" ? "error" : ""}`} />
             {health === "ok" ? "Connected" : health === "error" ? "DB error" : "Checking..."}
           </div>
-          <button className="btn btn-primary" onClick={handleSync} disabled={syncing}>
-            {syncing ? "Syncing..." : "Sync now"}
-          </button>
+          <div className="header-sync">
+            <button className="btn btn-primary" onClick={handleSync} disabled={syncing}>
+              {syncing ? "Syncing..." : "Sync now"}
+            </button>
+            {syncing && syncSteps.length > 0 && <AttemptSteps steps={syncSteps} />}
+            {!syncing && syncResult && (
+              <div className={`sync-result${syncResult.startsWith("Failed") ? " sync-result-error" : ""}`}>
+                {syncResult}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -313,11 +384,15 @@ export default function App() {
             <div className="test-row-info"><div className="test-row-label">{label}</div><div className="test-row-desc">{desc}</div></div>
             <div className="test-row-action">
               <button className={cls} onClick={() => runTest(key, key)} disabled={runningTest !== null}>{runningTest === key ? "Running…" : btn}</button>
-              {runningTest === key
-                ? <div className="test-status">{testStatus}</div>
-                : testResults[key]
-                  ? <div className={`test-result${testResults[key].startsWith("Failed") ? " test-result-error" : ""}`}>{testResults[key]}</div>
-                  : null}
+              {runningTest === key && liveTestSteps.length > 0 && <AttemptSteps steps={liveTestSteps} />}
+              {runningTest !== key && testAttemptSteps[key]?.length > 0 && (
+                <AttemptSteps steps={testAttemptSteps[key]} />
+              )}
+              {testResults[key] && (
+                <div className={`test-result${testResults[key].startsWith("Failed") ? " test-result-error" : ""}`}>
+                  {testResults[key]}
+                </div>
+              )}
             </div>
           </div>
         ))}
