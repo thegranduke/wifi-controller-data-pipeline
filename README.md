@@ -73,7 +73,7 @@ flowchart LR
 
 ### Backend
 
-FastAPI is used because it fits this assignment well: small endpoints, automatic
+FastAPI is used: small endpoints, automatic
 OpenAPI docs, dependency injection for database sessions, and built-in request
 validation. The backend uses:
 
