@@ -52,8 +52,9 @@ library, Vercel-inspired design system. Card collapse state is persisted to
 **AI:** Gemini Flash — session data is aggregated into per-venue statistics
 (count, avg duration, peak day/hour, % short/long sessions) and sent as a
 structured prompt requesting JSON output. Gemini returns four fields per venue:
-`summary`, `peak_time`, `pattern`, `action` — plain-English insights a venue
-manager would actually act on, not a wall of generated text.
+`summary`, `peak_time`, `pattern`, `action`. If no `GEMINI_API_KEY` is set,
+the endpoint returns realistic sample insights so reviewers can explore the UI
+without signing up for an API key.
 
 ---
 
@@ -211,7 +212,7 @@ the charts fast regardless of session volume.
 git clone <repo>
 cd wifi-controller-data-pipeline
 
-# Optional: add your Gemini key for the AI insights card
+# Optional: add your Gemini key for live AI insights (sample insights work without it)
 echo "GEMINI_API_KEY=your_key_here" > .env
 
 docker-compose up --build
@@ -223,6 +224,14 @@ docker-compose up --build
 Docker-compose starts a local Postgres container, waits for it to be healthy,
 starts the backend (which auto-creates all tables on first boot), then starts
 the frontend. No Supabase account or external database needed.
+
+**Quick smoke test after `docker-compose up`:**
+1. Open http://localhost:5173 — health dot should show "Connected"
+2. Click **Sync now** — venues and sessions populate
+3. Open **Sessions** → switch to **Chart** — bars and drill-down work
+4. Open **AI Insights** → **Generate** — sample insights appear (or live Gemini if key set)
+5. Expand **Integration tests** → run **Flaky controller** — retry status shows live
+6. Run `PYTHONPATH=. pytest backend/tests/test_sync.py -v` on the host (optional)
 
 ### Without Docker
 

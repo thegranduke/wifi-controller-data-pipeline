@@ -29,3 +29,14 @@ def test_health_returns_ok(client):
 def test_invalid_sync_mode_rejected(client):
     response = client.post("/sync?mode=explode")
     assert response.status_code == 400
+
+
+def test_insights_returns_sample_without_api_key(client, monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    client.post("/sync")
+    response = client.post("/insights")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["demo"] is True
+    assert len(data["venues"]) == 3
+    assert data["venues"][0]["venue_name"] == "The Anchor"

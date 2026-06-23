@@ -12,6 +12,38 @@ from backend.models import AccessPoint, Session as WifiSession, Venue
 VENUE_TYPES = {"The Anchor": "pub", "Brew & Co": "cafe", "Eastside Hotel Lobby": "hotel"}
 DAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
 
+SAMPLE_INSIGHTS = [
+    {
+        "venue_name": "The Anchor",
+        "summary": "Steady evening traffic with a clear weekend spike — typical pub Wi-Fi pattern with most sessions clustered around food and drinks service.",
+        "peak_time": "Fridays 17:00–21:00 (avg 28 sessions)",
+        "pattern": "42% of sessions last under 5 minutes, suggesting many quick check-ins rather than long stays.",
+        "action": "Consider a captive portal with a daily limit during peak hours to reduce bandwidth pressure on AP-Floor1.",
+    },
+    {
+        "venue_name": "Brew & Co",
+        "summary": "Moderate weekday morning traffic driven by remote workers, with shorter sessions than the pub venues.",
+        "peak_time": "Wednesdays 09:00–12:00 (avg 19 sessions)",
+        "pattern": "Average session length is 38 minutes — longer than pub venues but still below hotel lobby dwell time.",
+        "action": "Promote a loyalty Wi-Fi landing page during morning peaks to capture repeat customer emails.",
+    },
+    {
+        "venue_name": "Eastside Hotel Lobby",
+        "summary": "Highest session volume of all venues, with long dwell times consistent with hotel guest and traveller behaviour.",
+        "peak_time": "Sundays 14:00–18:00 (avg 34 sessions)",
+        "pattern": "31% of sessions exceed 2 hours — significantly higher than cafe or pub venues.",
+        "action": "Add bandwidth QoS rules on AP-Lobby to prioritise guest devices over conference-room traffic.",
+    },
+]
+
+
+def _sample_insights(venue_names: set[str] | None = None) -> dict:
+    venues = SAMPLE_INSIGHTS
+    if venue_names:
+        venues = [v for v in SAMPLE_INSIGHTS if v["venue_name"] in venue_names]
+    return {"venues": venues or SAMPLE_INSIGHTS, "demo": True}
+
+
 def generate_insights(db: Session) -> dict:
     since = datetime.utcnow() - timedelta(days=7)
     rows = (
@@ -23,6 +55,11 @@ def generate_insights(db: Session) -> dict:
     )
     if not rows:
         return {"error": "No session data available yet. Run a sync first to generate insights."}
+
+    venue_names = {name for _, _, name in rows if name}
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return _sample_insights(venue_names)
 
     stats = defaultdict(lambda: {"n": 0, "dur": [], "days": defaultdict(int), "hours": defaultdict(int)})
     for dur, at, name in rows:
@@ -62,7 +99,7 @@ Session data:
 Return only a JSON array. No backticks. No explanation.
 """
     try:
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.5-flash")
         with ThreadPoolExecutor(max_workers=1) as executor:
             response = executor.submit(model.generate_content, prompt).result(timeout=30)

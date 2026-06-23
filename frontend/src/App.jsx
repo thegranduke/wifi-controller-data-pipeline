@@ -380,7 +380,9 @@ export default function App() {
 
       <CollapsibleCard id="insights" title="AI Insights" badge={insights?.venues?.length ?? null}>
         <div className="insights-header">
-          <p className="insight-note" style={{ margin: 0 }}>Analyses session data across all venues using Gemini</p>
+          <p className="insight-note" style={{ margin: 0 }}>
+            {insights?.demo ? "Showing sample insights — add GEMINI_API_KEY for live Gemini output" : "Analyses session data across all venues using Gemini"}
+          </p>
           <button className="btn btn-primary" onClick={() => handleInsights(false)} disabled={insightLoading}>
             {insightLoading ? "Generating…" : "Generate"}
           </button>
@@ -411,7 +413,7 @@ export default function App() {
                   <div className="insight-field" key={label}><div className="insight-field-label">{label}</div>{text}</div>
                 ))}
                 <div className="insight-field insight-field-action"><div className="insight-field-label">Action</div>{v.action}</div>
-                <div className="ai-generated">AI generated</div>
+                <div className="ai-generated">{insights.demo ? "Sample insight" : "AI generated"}</div>
               </div>
             </>
           );
