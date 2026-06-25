@@ -154,7 +154,9 @@ export default function App() {
   useEffect(() => {
     if (sessionView !== "chart") return;
     setChartLoading(true);
-    fetchSessionsAll(selectedVenue).then(setAllSessions).finally(() => setChartLoading(false));
+    Promise.all([fetchSessionsAll(selectedVenue), fetchAccessPoints()])
+      .then(([s, aps]) => { setAllSessions(s); setAccessPoints(aps); })
+      .finally(() => setChartLoading(false));
   }, [sessionView, selectedVenue]);
 
   const handleSync = async () => {

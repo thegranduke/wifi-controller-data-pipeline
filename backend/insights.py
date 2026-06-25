@@ -15,24 +15,24 @@ DAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
 SAMPLE_INSIGHTS = [
     {
         "venue_name": "The Anchor",
-        "summary": "Steady evening traffic with a clear weekend spike — typical pub Wi-Fi pattern with most sessions clustered around food and drinks service.",
+        "summary": "Steady evening traffic with a clear weekend spike — most guests connect around food and drinks service rather than staying all afternoon.",
         "peak_time": "Fridays 17:00–21:00 (avg 28 sessions)",
         "pattern": "42% of sessions last under 5 minutes, suggesting many quick check-ins rather than long stays.",
-        "action": "Consider a captive portal with a daily limit during peak hours to reduce bandwidth pressure on AP-Floor1.",
+        "action": "Run a Friday 17:00–19:00 happy-hour push notification on the Wi-Fi landing page — guests are already online at peak and short sessions suggest they're deciding whether to stay.",
     },
     {
         "venue_name": "Brew & Co",
-        "summary": "Moderate weekday morning traffic driven by remote workers, with shorter sessions than the pub venues.",
+        "summary": "Moderate weekday morning traffic driven by remote workers, with sessions long enough to suggest people treat it as a workspace.",
         "peak_time": "Wednesdays 09:00–12:00 (avg 19 sessions)",
-        "pattern": "Average session length is 38 minutes — longer than pub venues but still below hotel lobby dwell time.",
-        "action": "Promote a loyalty Wi-Fi landing page during morning peaks to capture repeat customer emails.",
+        "pattern": "Average session length is 38 minutes — longer than pub venues, with repeat morning weekday connections.",
+        "action": "Introduce a mid-morning coffee-and-pastry combo (10:30–11:30) on the Wi-Fi splash page — remote workers are settled in by then and likely to add a second order.",
     },
     {
         "venue_name": "Eastside Hotel Lobby",
-        "summary": "Highest session volume of all venues, with long dwell times consistent with hotel guest and traveller behaviour.",
+        "summary": "Highest session volume of all venues, with long dwell times consistent with guests waiting, working, or passing through the lobby.",
         "peak_time": "Sundays 14:00–18:00 (avg 34 sessions)",
         "pattern": "31% of sessions exceed 2 hours — significantly higher than cafe or pub venues.",
-        "action": "Add bandwidth QoS rules on AP-Lobby to prioritise guest devices over conference-room traffic.",
+        "action": "Staff the lobby bar for Sunday afternoon refreshments — guests are staying long enough that a light snack or drink offer could convert idle Wi-Fi time into revenue.",
     },
 ]
 
@@ -83,15 +83,18 @@ def generate_insights(db: Session) -> dict:
         )
     formatted_stats = "\n".join(lines)
     prompt = f"""
-You are an analyst for a Wi-Fi venue platform. Analyse this session data and return 
-a JSON array. One object per venue. No markdown, no explanation, just valid JSON.
+You are a hospitality business consultant analysing Wi-Fi session data for pub, café, and hotel owners.
+Return a JSON array with one object per venue. No markdown, no explanation, just valid JSON.
 
 Each object must have exactly these keys:
 - venue_name: string
-- summary: one sentence describing overall activity level and pattern
+- summary: one sentence on overall guest Wi-Fi behaviour and what it implies about how people use the venue
 - peak_time: specific day and time window with a number e.g. "Fridays 17:00-21:00 (avg 23 sessions)"
-- pattern: one unusual or notable observation with a specific number
-- action: one concrete recommendation the venue manager should act on
+- pattern: one non-obvious observation with a specific number from the data — something the owner might not have noticed
+- action: one practical, revenue or experience-focused recommendation the owner can act on this week.
+  Tie it to the data: timed promotions, staffing, menu or drink offers, loyalty capture, seating, or ways to
+  encourage longer stays or faster turnover. Avoid technical IT advice (bandwidth, QoS, captive portal limits)
+  unless no business angle fits.
 
 Session data:
 {formatted_stats}

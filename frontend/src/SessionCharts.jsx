@@ -4,14 +4,18 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recha
 const BAR_COLOR = "#0070f3";
 const tooltipStyle = { fontSize: 12, border: "1px solid #eaeaea", borderRadius: 5, boxShadow: "none" };
 
+const idKey = (id) => String(id ?? "");
+
 export default function SessionCharts({ sessions, accessPoints, loading }) {
   const [drillAp, setDrillAp] = useState(null);
 
   const apMap = useMemo(
-    () => Object.fromEntries(accessPoints.map((ap) => [ap.id, ap])),
+    () => Object.fromEntries(accessPoints.map((ap) => [idKey(ap.id), ap])),
     [accessPoints],
   );
-  const filtered = drillAp ? sessions.filter((s) => s.access_point_id === drillAp.id) : sessions;
+  const filtered = drillAp
+    ? sessions.filter((s) => idKey(s.access_point_id) === idKey(drillAp.id))
+    : sessions;
 
   const byDevice = useMemo(() => {
     const c = {};
@@ -23,10 +27,11 @@ export default function SessionCharts({ sessions, accessPoints, loading }) {
     if (drillAp) return [];
     const c = {};
     sessions.forEach((s) => {
-      const ap = apMap[s.access_point_id];
-      if (!ap) return;
-      if (!c[ap.id]) c[ap.id] = { id: ap.id, name: ap.name, count: 0 };
-      c[ap.id].count++;
+      const id = idKey(s.access_point_id);
+      const ap = apMap[id];
+      const name = ap?.name ?? `AP ${id.slice(0, 8)}`;
+      if (!c[id]) c[id] = { id, name, count: 0 };
+      c[id].count++;
     });
     return Object.values(c).sort((a, b) => b.count - a.count);
   }, [sessions, apMap, drillAp]);
@@ -87,9 +92,9 @@ export default function SessionCharts({ sessions, accessPoints, loading }) {
                 <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: "#f5f5f5" }} contentStyle={tooltipStyle} />
                 <Bar dataKey="count" fill={BAR_COLOR} radius={[0, 3, 3, 0]} cursor="pointer"
-                  onClick={(_, index) => {
-                    const row = byAp[index];
-                    if (row) setDrillAp({ id: row.id, name: row.name });
+                  onClick={(data) => {
+                    const row = data?.payload ?? data;
+                    if (row?.id) setDrillAp({ id: idKey(row.id), name: row.name });
                   }} />
               </BarChart>
             </ResponsiveContainer>
