@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-from mangum import Mangum
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -27,4 +26,4 @@ class StripApiPrefix:
         await self.app(scope, receive, send)
 
 
-handler = Mangum(StripApiPrefix(fastapi_app), lifespan="auto")
+app = StripApiPrefix(fastapi_app)
