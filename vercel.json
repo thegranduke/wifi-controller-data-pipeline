@@ -1,7 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm install && npm run build && mkdir -p ../public && cp -r dist/. ../public/",
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/:path*" }
-  ]
-}
