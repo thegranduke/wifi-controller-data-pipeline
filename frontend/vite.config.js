@@ -10,6 +10,8 @@ export default defineConfig({
   server: {
     port: 5173,
     host: "0.0.0.0",
+    // Railway assigns a random *.up.railway.app hostname per deploy
+    allowedHosts: true,
     proxy: {
       "/api": {
         target: proxyTarget,
