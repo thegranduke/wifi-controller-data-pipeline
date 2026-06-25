@@ -1,10 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "pip install --break-system-packages -r requirements.txt && cd frontend && npm install",
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "experimentalServices": {
+    "web": {
+      "entrypoint": "frontend",
+      "framework": "vite",
+      "routePrefix": "/"
+    },
+    "api": {
+      "entrypoint": "backend/main.py",
+      "framework": "fastapi",
+      "routePrefix": "/api",
+      "maxDuration": 60,
+      "includeFiles": "backend/**"
+    }
+  }
 }
