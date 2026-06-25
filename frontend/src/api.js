@@ -1,6 +1,5 @@
-// Same-origin /api in dev — Vite proxies to the backend (see vite.config.js).
-// Override with VITE_API_URL only if you need a direct backend URL.
-const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+// Local dev/Docker: /api via Vite proxy. Railway: window.__API_URL__ set at container start.
+const BASE_URL = window.__API_URL__ || import.meta.env.VITE_API_URL || "/api";
 
 async function request(path, options = {}) {
   const response = await fetch(`${BASE_URL}${path}`, options);
